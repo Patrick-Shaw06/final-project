@@ -2,7 +2,7 @@
 radio.set_group(8)
 music.set_tempo(200)
 
-# Basic Functions for Movement
+# Basic Functions for Movement for Maze Navigation
 # Check for wall
 def isWall(distanceThreshold):
     # If too close to wall, back up slightly
@@ -48,6 +48,59 @@ def moveForward():
     # Move forwards halfway into next grid square
     CutebotPro.distance_running(CutebotProOrientation.ADVANCE, 30.7 / 2, CutebotProDistanceUnits.CM)
     CutebotPro.turn_off_all_headlights()
+
+# Function to Trace Line
+def linetracing():
+    '''
+    The line tracing algorithm works by looping through a series conditions to
+        determine whether the Cutebot goes straight, turns left, or turns right
+        by using the get_offset() function to determine the bot's position
+        relative to the line to be followed.
+    The bot attempts to align the right two line sensors with the line and
+        otherwise will turn to do so.
+    '''
+    # Parameters
+    speed = 20
+    min_range = 1500
+    max_range = 2800
+    magnet = 290
+    while abs(input.magnetic_force(Dimension.Z)) <= magnet:
+        CutebotPro.get_offset()
+        # If the right half of the bot is aligned with the line, move forwards.
+        while CutebotPro.get_offset() in range(min_range,max_range) and abs(input.magnetic_force(Dimension.Z)) <= magnet:
+            CutebotPro.turn_off_all_headlights()
+            CutebotPro.color_light(CutebotProRGBLight.RGBA, 0x00ff00)
+            CutebotPro.pwm_cruise_control(speed, speed)
+        # If the line is too far to the right, the bot needs to turn right.
+        if CutebotPro.get_offset() >= max_range:
+            while CutebotPro.get_offset() >= max_range and abs(input.magnetic_force(Dimension.Z)) <= magnet:
+                CutebotPro.turn_off_all_headlights()
+                CutebotPro.color_light(CutebotProRGBLight.RGBR, 0xff0000)
+                CutebotPro.pwm_cruise_control(speed,-speed)
+                CutebotPro.angle_running(CutebotProWheel.LEFT_WHEEL,40,CutebotProAngleUnits.ANGLE)
+        # Otherwise, the line must be too far to the left and the bot needs to turn left.
+        else:
+            while CutebotPro.get_offset() <= min_range and abs(input.magnetic_force(Dimension.Z)) <= magnet:
+                CutebotPro.turn_off_all_headlights()
+                CutebotPro.color_light(CutebotProRGBLight.RGBL, 0xff0000)
+                CutebotPro.pwm_cruise_control(-speed,speed)
+                CutebotPro.angle_running(CutebotProWheel.RIGHT_WHEEL,40,CutebotProAngleUnits.ANGLE)
+            # Move forwards to move back towards line
+            CutebotPro.distance_running(CutebotProOrientation.ADVANCE,0.25, CutebotProDistanceUnits.CM)
+    # Play note to represent that magnet has been found
+    music.play(music.tone_playable(Note.C, music.beat(BeatFraction.WHOLE)), music.PlaybackMode.UNTIL_DONE)
+    CutebotPro.turn_off_all_headlights()
+
+    # Move around magnet into maze
+    # Back up from magnet
+    CutebotPro.pwm_cruise_control(-speed, -speed)
+    CutebotPro.distance_running(CutebotProOrientation.RETREAT, 7, CutebotProDistanceUnits.CM)
+    # Turn right to avoid magnet
+    CutebotPro.pwm_cruise_control(speed, 0)
+    CutebotPro.angle_running(CutebotProWheel.LEFT_WHEEL, 20,CutebotProAngleUnits.ANGLE)
+    # Move forwards into maze
+    CutebotPro.pwm_cruise_control(speed, speed)
+    CutebotPro.distance_running(CutebotProOrientation.ADVANCE, 25, CutebotProDistanceUnits.CM)
 
 # Function to Navigate Maze
 def navigateMaze(distanceThreshold, magnetThreshold):
@@ -222,7 +275,12 @@ def on_button_pressed_b():
     """)
     basic.pause(500)
     basic.clear_screen()
+    # Trace the line
     linetracing()
+    # Navigate the maze
+    navigateMaze(20, 300)
+    # Celebrate!
+    celebration()
 
 # Radio Transmission
 def on_received_number(move):
@@ -243,102 +301,61 @@ input.on_button_pressed(Button.A, on_button_pressed_a)
 input.on_button_pressed(Button.B, on_button_pressed_b)
 radio.on_received_number(on_received_number)
 
-
-def linetracing():
-    speed = 20
-    min_range = 1500
-    max_range = 2800
-    magnet = 290
-    while abs(input.magnetic_force(Dimension.Z)) <= magnet:
-        # turn on headlights
-        CutebotPro.get_offset()
-        while CutebotPro.get_offset() in range(min_range,max_range) and abs(input.magnetic_force(Dimension.Z)) <= magnet:
-            # while following offset using the right 2 sensors
-            CutebotPro.turn_off_all_headlights()
-            CutebotPro.color_light(CutebotProRGBLight.RGBA, 0x00ff00)
-            CutebotPro.pwm_cruise_control(speed, speed)
-            # go forward
-        if CutebotPro.get_offset() >= max_range:
-            # if it goes off the line (this only happens when only choice is to turn right)
-            while CutebotPro.get_offset() >= max_range and abs(input.magnetic_force(Dimension.Z)) <= magnet:
-                # turn right until find line
-                CutebotPro.turn_off_all_headlights()
-                CutebotPro.color_light(CutebotProRGBLight.RGBR, 0xff0000)
-                CutebotPro.pwm_cruise_control(speed,-speed)
-                CutebotPro.angle_running(CutebotProWheel.LEFT_WHEEL,40,CutebotProAngleUnits.ANGLE)
-        else: # if it detects a line to the left
-            while CutebotPro.get_offset() <= min_range and abs(input.magnetic_force(Dimension.Z)) <= magnet:
-                # turn left until find line
-                CutebotPro.turn_off_all_headlights()
-                CutebotPro.color_light(CutebotProRGBLight.RGBL, 0xff0000)
-                CutebotPro.pwm_cruise_control(-speed,speed)
-                CutebotPro.angle_running(CutebotProWheel.RIGHT_WHEEL,40,CutebotProAngleUnits.ANGLE)
-            CutebotPro.distance_running(CutebotProOrientation.ADVANCE,0.25, CutebotProDistanceUnits.CM)
-    music.play(music.tone_playable(Note.C, music.beat(BeatFraction.WHOLE)), music.PlaybackMode.UNTIL_DONE)
-    CutebotPro.turn_off_all_headlights()
-    # Move into maze around magnet
-    CutebotPro.pwm_cruise_control(-speed, -speed)
-    CutebotPro.distance_running(CutebotProOrientation.RETREAT, 7, CutebotProDistanceUnits.CM)
-    CutebotPro.pwm_cruise_control(speed, 0)
-    CutebotPro.angle_running(CutebotProWheel.LEFT_WHEEL, 20,CutebotProAngleUnits.ANGLE)
-    CutebotPro.pwm_cruise_control(speed, speed)
-    CutebotPro.distance_running(CutebotProOrientation.ADVANCE, 25, CutebotProDistanceUnits.CM)
-    # Navigate maze
-    navigateMaze(20,300)
-    # Celebrate!
-    celebration()
-
 def beautiful():
+    # Set the volume
     music.set_volume(127)
-    playLeadBridge()
-    playLeadMelody()
-    playLeadEnding()
+    # Form of music
+    playBridge()
+    playMelody()
+    playEnding()
 
-i = 0
-def playEighth(note: number):
+# Basic functions to play distinct notes and rest
+# Notes are given by frequency (Hz) and lengths are given in ms
+# Eighth note
+def playEighth(note):
     music.play(music.tone_playable(note, 161),
         music.PlaybackMode.UNTIL_DONE)
     music.rest(53)
-def playDottedQuarter(note2: number):
-    music.play(music.tone_playable(note2, 589),
+# Quarter note
+def playQuarter(note):
+    music.play(music.tone_playable(note, 375),
         music.PlaybackMode.UNTIL_DONE)
     music.rest(53)
-def playHalf(note3: number):
-    music.play(music.tone_playable(note3, 804),
+# Dotted quarter note (three-eighths)
+def playDottedQuarter(note):
+    music.play(music.tone_playable(note, 589),
         music.PlaybackMode.UNTIL_DONE)
     music.rest(53)
-
-def restHalf():
-    music.rest(857)
-def playLeadEnding():
-    # Plays and queues on 1
-    playDottedQuarter(330)
-    playEighth(370)
-    playQuarter(415)
-    restQuarter()
-    playEighth(415)
-    playEighth(415)
-    playEighth(415)
-    playEighth(415)
-    playTriplet(415, 370, 330)
-def restQuarter():
-    music.rest(428)
-def playTriplet(note1: number, note22: number, note32: number):
+# Triplet approximation (dotted eighth, dotted eighth, eighth)
+def playTriplet(note1, note2, note3):
     music.play(music.tone_playable(note1, 268),
         music.PlaybackMode.UNTIL_DONE)
     music.rest(53)
-    music.play(music.tone_playable(note22, 268),
+    music.play(music.tone_playable(note2, 268),
         music.PlaybackMode.UNTIL_DONE)
     music.rest(53)
-    music.play(music.tone_playable(note32, 161),
+    music.play(music.tone_playable(note3, 161),
         music.PlaybackMode.UNTIL_DONE)
     music.rest(53)
-def playQuarter(note4: number):
-    music.play(music.tone_playable(note4, 375),
+# Half note
+def playHalf(note):
+    music.play(music.tone_playable(note, 804),
         music.PlaybackMode.UNTIL_DONE)
     music.rest(53)
-# restHalf()
-def playLeadBridge():
+# Eighth rest
+def restEighth():
+    music.rest(214)
+# Quarter rest
+def restQuarter():
+    music.rest(428)
+# Half rest
+def restHalf():
+    music.rest(857)
+# Whole rest
+def restWhole():
+    music.rest(1714)
+
+def playBridge():
     playQuarter(330)
     playEighth(415)
     playEighth(494)
@@ -357,19 +374,14 @@ def playLeadBridge():
     playEighth(494)
     playDottedQuarter(415)
     playEighth(370)
-def restWhole():
-    music.rest(1714)
-def restEighth():
-    music.rest(214)
-def playLeadMelody():
-    # Begins on 3
+
+def playMelody():
     restEighth()
     playEighth(415)
     playEighth(370)
     playEighth(330)
-    for index in range(2):
-        j = 0
-        while j < 2:
+    for i in range(2):
+        for j in range(2):
             playTriplet(330, 330, 330)
             playTriplet(330, 330, 330)
             playQuarter(370)
@@ -379,7 +391,6 @@ def playLeadMelody():
             playEighth(415)
             playEighth(370)
             playEighth(330)
-            j += 1
         playTriplet(330, 330, 330)
         playTriplet(330, 330, 330)
         playQuarter(415)
@@ -392,25 +403,33 @@ def playLeadMelody():
         playEighth(370)
         playQuarter(415)
         restQuarter()
-        j = 0
-        while j < 4:
+        for j in range(4):
             playEighth(415)
-            j += 1
         playTriplet(415, 370, 330)
 
-def lightpause():
-    basic.pause(100)
+def playEnding():
+    playDottedQuarter(330)
+    playEighth(370)
+    playQuarter(415)
+    restQuarter()
+    playEighth(415)
+    playEighth(415)
+    playEighth(415)
+    playEighth(415)
+    playTriplet(415, 370, 330)
 
 def celebration():
+    # Play music in background
     control.in_background(beautiful)
-    colors = [
+    # And run a light show
+    colors = [ # For light colors
             0xffff00, 0xb09eff, 0xff0000, 0xff00ff,
             0xffff00, 0x00ff00, 0xff0080, 0x00ffff,
             0x0000ff, 0xff0000, 0x7f00ff, 0xffa500,
             0x00ff00
             ]
 
-    for loop in range(28):  # Repeat the pattern 28 times
+    for loop in range(28):  # Repeat the light pattern 28 times (length of song)
         i = 0
         while i < len(colors):
             color = colors[i]
@@ -418,8 +437,8 @@ def celebration():
                 CutebotPro.color_light(CutebotProRGBLight.RGBL, color)
             else:
                 CutebotPro.color_light(CutebotProRGBLight.RGBR, color)
-            lightpause()
+            basic.pause(100)
             i += 1
-    final_color = 0xffffff  # End on white
-    CutebotPro.color_light(CutebotProRGBLight.RGBL, final_color)
-    CutebotPro.color_light(CutebotProRGBLight.RGBR, final_color)
+    # End with white lights
+    final_color = 0xffffff
+    CutebotPro.color_light(CutebotProRGBLight.RGBA, final_color)

@@ -1,7 +1,7 @@
 //  Set Group for Radio Communications
 radio.setGroup(8)
 music.setTempo(200)
-//  Basic Functions for Movement
+//  Basic Functions for Movement for Maze Navigation
 //  Check for wall
 function isWall(distanceThreshold: number) {
     //  If too close to wall, back up slightly
@@ -57,6 +57,66 @@ function moveForward() {
     //  Move forwards halfway into next grid square
     CutebotPro.distanceRunning(CutebotProOrientation.Advance, 30.7 / 2, CutebotProDistanceUnits.Cm)
     CutebotPro.turnOffAllHeadlights()
+}
+
+//  Function to Trace Line
+function linetracing() {
+    /** 
+    The line tracing algorithm works by looping through a series conditions to
+        determine whether the Cutebot goes straight, turns left, or turns right
+        by using the get_offset() function to determine the bot's position
+        relative to the line to be followed.
+    The bot attempts to align the right two line sensors with the line and
+        otherwise will turn to do so.
+    
+ */
+    //  Parameters
+    let speed = 20
+    let min_range = 1500
+    let max_range = 2800
+    let magnet = 290
+    while (Math.abs(input.magneticForce(Dimension.Z)) <= magnet) {
+        CutebotPro.getOffset()
+        //  If the right half of the bot is aligned with the line, move forwards.
+        while (_py.range(min_range, max_range).indexOf(CutebotPro.getOffset()) >= 0 && Math.abs(input.magneticForce(Dimension.Z)) <= magnet) {
+            CutebotPro.turnOffAllHeadlights()
+            CutebotPro.colorLight(CutebotProRGBLight.RGBA, 0x00ff00)
+            CutebotPro.pwmCruiseControl(speed, speed)
+        }
+        //  If the line is too far to the right, the bot needs to turn right.
+        if (CutebotPro.getOffset() >= max_range) {
+            while (CutebotPro.getOffset() >= max_range && Math.abs(input.magneticForce(Dimension.Z)) <= magnet) {
+                CutebotPro.turnOffAllHeadlights()
+                CutebotPro.colorLight(CutebotProRGBLight.RGBR, 0xff0000)
+                CutebotPro.pwmCruiseControl(speed, -speed)
+                CutebotPro.angleRunning(CutebotProWheel.LeftWheel, 40, CutebotProAngleUnits.Angle)
+            }
+        } else {
+            //  Otherwise, the line must be too far to the left and the bot needs to turn left.
+            while (CutebotPro.getOffset() <= min_range && Math.abs(input.magneticForce(Dimension.Z)) <= magnet) {
+                CutebotPro.turnOffAllHeadlights()
+                CutebotPro.colorLight(CutebotProRGBLight.RGBL, 0xff0000)
+                CutebotPro.pwmCruiseControl(-speed, speed)
+                CutebotPro.angleRunning(CutebotProWheel.RightWheel, 40, CutebotProAngleUnits.Angle)
+            }
+            //  Move forwards to move back towards line
+            CutebotPro.distanceRunning(CutebotProOrientation.Advance, 0.25, CutebotProDistanceUnits.Cm)
+        }
+        
+    }
+    //  Play note to represent that magnet has been found
+    music.play(music.tonePlayable(Note.C, music.beat(BeatFraction.Whole)), music.PlaybackMode.UntilDone)
+    CutebotPro.turnOffAllHeadlights()
+    //  Move around magnet into maze
+    //  Back up from magnet
+    CutebotPro.pwmCruiseControl(-speed, -speed)
+    CutebotPro.distanceRunning(CutebotProOrientation.Retreat, 7, CutebotProDistanceUnits.Cm)
+    //  Turn right to avoid magnet
+    CutebotPro.pwmCruiseControl(speed, 0)
+    CutebotPro.angleRunning(CutebotProWheel.LeftWheel, 20, CutebotProAngleUnits.Angle)
+    //  Move forwards into maze
+    CutebotPro.pwmCruiseControl(speed, speed)
+    CutebotPro.distanceRunning(CutebotProOrientation.Advance, 25, CutebotProDistanceUnits.Cm)
 }
 
 //  Function to Navigate Maze
@@ -268,7 +328,12 @@ input.onButtonPressed(Button.B, function on_button_pressed_b() {
     `)
     basic.pause(500)
     basic.clearScreen()
+    //  Trace the line
     linetracing()
+    //  Navigate the maze
+    navigateMaze(20, 300)
+    //  Celebrate!
+    celebration()
 })
 radio.onReceivedNumber(function on_received_number(move: number) {
     if (move == 1) {
@@ -288,111 +353,63 @@ radio.onReceivedNumber(function on_received_number(move: number) {
     music.rest(music.beat(BeatFraction.Half))
     CutebotPro.turnOffAllHeadlights()
 })
-function linetracing() {
-    let speed = 20
-    let min_range = 1500
-    let max_range = 2800
-    let magnet = 290
-    while (Math.abs(input.magneticForce(Dimension.Z)) <= magnet) {
-        //  turn on headlights
-        CutebotPro.getOffset()
-        while (_py.range(min_range, max_range).indexOf(CutebotPro.getOffset()) >= 0 && Math.abs(input.magneticForce(Dimension.Z)) <= magnet) {
-            //  while following offset using the right 2 sensors
-            CutebotPro.turnOffAllHeadlights()
-            CutebotPro.colorLight(CutebotProRGBLight.RGBA, 0x00ff00)
-            CutebotPro.pwmCruiseControl(speed, speed)
-        }
-        //  go forward
-        if (CutebotPro.getOffset() >= max_range) {
-            //  if it goes off the line (this only happens when only choice is to turn right)
-            while (CutebotPro.getOffset() >= max_range && Math.abs(input.magneticForce(Dimension.Z)) <= magnet) {
-                //  turn right until find line
-                CutebotPro.turnOffAllHeadlights()
-                CutebotPro.colorLight(CutebotProRGBLight.RGBR, 0xff0000)
-                CutebotPro.pwmCruiseControl(speed, -speed)
-                CutebotPro.angleRunning(CutebotProWheel.LeftWheel, 40, CutebotProAngleUnits.Angle)
-            }
-        } else {
-            //  if it detects a line to the left
-            while (CutebotPro.getOffset() <= min_range && Math.abs(input.magneticForce(Dimension.Z)) <= magnet) {
-                //  turn left until find line
-                CutebotPro.turnOffAllHeadlights()
-                CutebotPro.colorLight(CutebotProRGBLight.RGBL, 0xff0000)
-                CutebotPro.pwmCruiseControl(-speed, speed)
-                CutebotPro.angleRunning(CutebotProWheel.RightWheel, 40, CutebotProAngleUnits.Angle)
-            }
-            CutebotPro.distanceRunning(CutebotProOrientation.Advance, 0.25, CutebotProDistanceUnits.Cm)
-        }
-        
-    }
-    music.play(music.tonePlayable(Note.C, music.beat(BeatFraction.Whole)), music.PlaybackMode.UntilDone)
-    CutebotPro.turnOffAllHeadlights()
-    //  Move into maze around magnet
-    CutebotPro.pwmCruiseControl(-speed, -speed)
-    CutebotPro.distanceRunning(CutebotProOrientation.Retreat, 7, CutebotProDistanceUnits.Cm)
-    CutebotPro.pwmCruiseControl(speed, 0)
-    CutebotPro.angleRunning(CutebotProWheel.LeftWheel, 20, CutebotProAngleUnits.Angle)
-    CutebotPro.pwmCruiseControl(speed, speed)
-    CutebotPro.distanceRunning(CutebotProOrientation.Advance, 25, CutebotProDistanceUnits.Cm)
-    //  Navigate maze
-    navigateMaze(20, 300)
-    //  Celebrate!
-    celebration()
-}
-
-let i = 0
+//  Basic functions to play distinct notes and rest
+//  Notes are given by frequency (Hz) and lengths are given in ms
+//  Eighth note
 function playEighth(note: number) {
     music.play(music.tonePlayable(note, 161), music.PlaybackMode.UntilDone)
     music.rest(53)
 }
 
-function playDottedQuarter(note2: number) {
-    music.play(music.tonePlayable(note2, 589), music.PlaybackMode.UntilDone)
+//  Quarter note
+function playQuarter(note: number) {
+    music.play(music.tonePlayable(note, 375), music.PlaybackMode.UntilDone)
     music.rest(53)
 }
 
-function playHalf(note3: number) {
-    music.play(music.tonePlayable(note3, 804), music.PlaybackMode.UntilDone)
+//  Dotted quarter note (three-eighths)
+function playDottedQuarter(note: number) {
+    music.play(music.tonePlayable(note, 589), music.PlaybackMode.UntilDone)
     music.rest(53)
 }
 
-function restHalf() {
-    music.rest(857)
+//  Triplet approximation (dotted eighth, dotted eighth, eighth)
+function playTriplet(note1: number, note2: number, note3: number) {
+    music.play(music.tonePlayable(note1, 268), music.PlaybackMode.UntilDone)
+    music.rest(53)
+    music.play(music.tonePlayable(note2, 268), music.PlaybackMode.UntilDone)
+    music.rest(53)
+    music.play(music.tonePlayable(note3, 161), music.PlaybackMode.UntilDone)
+    music.rest(53)
 }
 
-function playLeadEnding() {
-    //  Plays and queues on 1
-    playDottedQuarter(330)
-    playEighth(370)
-    playQuarter(415)
-    restQuarter()
-    playEighth(415)
-    playEighth(415)
-    playEighth(415)
-    playEighth(415)
-    playTriplet(415, 370, 330)
+//  Half note
+function playHalf(note: number) {
+    music.play(music.tonePlayable(note, 804), music.PlaybackMode.UntilDone)
+    music.rest(53)
 }
 
+//  Eighth rest
+function restEighth() {
+    music.rest(214)
+}
+
+//  Quarter rest
 function restQuarter() {
     music.rest(428)
 }
 
-function playTriplet(note1: number, note22: number, note32: number) {
-    music.play(music.tonePlayable(note1, 268), music.PlaybackMode.UntilDone)
-    music.rest(53)
-    music.play(music.tonePlayable(note22, 268), music.PlaybackMode.UntilDone)
-    music.rest(53)
-    music.play(music.tonePlayable(note32, 161), music.PlaybackMode.UntilDone)
-    music.rest(53)
+//  Half rest
+function restHalf() {
+    music.rest(857)
 }
 
-function playQuarter(note4: number) {
-    music.play(music.tonePlayable(note4, 375), music.PlaybackMode.UntilDone)
-    music.rest(53)
+//  Whole rest
+function restWhole() {
+    music.rest(1714)
 }
 
-//  restHalf()
-function playLeadBridge() {
+function playBridge() {
     playQuarter(330)
     playEighth(415)
     playEighth(494)
@@ -413,24 +430,14 @@ function playLeadBridge() {
     playEighth(370)
 }
 
-function restWhole() {
-    music.rest(1714)
-}
-
-function restEighth() {
-    music.rest(214)
-}
-
-function playLeadMelody() {
+function playMelody() {
     let j: number;
-    //  Begins on 3
     restEighth()
     playEighth(415)
     playEighth(370)
     playEighth(330)
-    for (let index = 0; index < 2; index++) {
-        j = 0
-        while (j < 2) {
+    for (let i = 0; i < 2; i++) {
+        for (j = 0; j < 2; j++) {
             playTriplet(330, 330, 330)
             playTriplet(330, 330, 330)
             playQuarter(370)
@@ -440,7 +447,6 @@ function playLeadMelody() {
             playEighth(415)
             playEighth(370)
             playEighth(330)
-            j += 1
         }
         playTriplet(330, 330, 330)
         playTriplet(330, 330, 330)
@@ -454,31 +460,42 @@ function playLeadMelody() {
         playEighth(370)
         playQuarter(415)
         restQuarter()
-        j = 0
-        while (j < 4) {
+        for (j = 0; j < 4; j++) {
             playEighth(415)
-            j += 1
         }
         playTriplet(415, 370, 330)
     }
 }
 
-function lightpause() {
-    basic.pause(100)
+function playEnding() {
+    playDottedQuarter(330)
+    playEighth(370)
+    playQuarter(415)
+    restQuarter()
+    playEighth(415)
+    playEighth(415)
+    playEighth(415)
+    playEighth(415)
+    playTriplet(415, 370, 330)
 }
 
 function celebration() {
     let i: number;
     let color: number;
+    //  Play music in background
     control.inBackground(function beautiful() {
+        //  Set the volume
         music.setVolume(127)
-        playLeadBridge()
-        playLeadMelody()
-        playLeadEnding()
+        //  Form of music
+        playBridge()
+        playMelody()
+        playEnding()
     })
+    //  And run a light show
     let colors = [0xffff00, 0xb09eff, 0xff0000, 0xff00ff, 0xffff00, 0x00ff00, 0xff0080, 0x00ffff, 0x0000ff, 0xff0000, 0x7f00ff, 0xffa500, 0x00ff00]
+    //  For light colors
     for (let loop = 0; loop < 28; loop++) {
-        //  Repeat the pattern 28 times
+        //  Repeat the light pattern 28 times (length of song)
         i = 0
         while (i < colors.length) {
             color = colors[i]
@@ -488,13 +505,12 @@ function celebration() {
                 CutebotPro.colorLight(CutebotProRGBLight.RGBR, color)
             }
             
-            lightpause()
+            basic.pause(100)
             i += 1
         }
     }
+    //  End with white lights
     let final_color = 0xffffff
-    //  End on white
-    CutebotPro.colorLight(CutebotProRGBLight.RGBL, final_color)
-    CutebotPro.colorLight(CutebotProRGBLight.RGBR, final_color)
+    CutebotPro.colorLight(CutebotProRGBLight.RGBA, final_color)
 }
 
